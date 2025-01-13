@@ -3,49 +3,52 @@ from ultralytics import YOLO
 import cv2
 import time
 import numpy as np
+from PIL import Image
 
-# Load the YOLO model
+# Load YOLO model
 model = YOLO("yolov8n_custom1.pt")
 
-# Set up Streamlit for the webcam input
-st.title("Face Recognition with YOLOv8")
-st.write("Press 'q' to stop the webcam.")
+# Set up Streamlit UI
+st.title("Face Recognition with YOLO")
+st.write("Use your webcam or upload a video to perform face recognition.")
 
-# Start the webcam capture
-cam = cv2.VideoCapture(0)
+# Streamlit file uploader or camera input
+video_file = st.file_uploader("Upload Video", type=["mp4", "avi", "mov"])
+use_webcam = st.checkbox("Use Webcam", False)
 
-if not cam.isOpened():
-    st.error("No Camera found.")
-else:
-    stframe = st.empty()  # This is the placeholder for webcam frames
+# Define webcam usage logic
+if use_webcam:
+    cam = cv2.VideoCapture(0)
+    if not cam.isOpened():
+        st.error("No Camera Found")
+    else:
+        while True:
+            ret, image = cam.read()
+            if not ret:
+                break
+            
+            # Process frame with YOLO
+            _time_mulai = time.time()
+            result = model.predict(image, show=False)  # Don't use show=True because it's handled by Streamlit
 
-    while True:
-        ret, image = cam.read()
-        if not ret:
-            st.error("Failed to read frame from webcam.")
-            break
+            # Display the frame with detections
+            frame = result[0].plot()  # Visualize results
 
-        # Convert the image to RGB (Streamlit uses RGB format)
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+            # Calculate time for each frame
+            st.write(f"Processing Time: {time.time() - _time_mulai:.2f} seconds")
+            
+            # Convert frame to image to display on Streamlit
+            frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            st.image(frame_rgb, channels="RGB", use_column_width=True)
 
-        # Measure the inference time
-        start_time = time.time()
-        result = model.predict(image_rgb, show=False)
-
-        # Print the inference time to the console
-        st.write("Inference Time: ", time.time() - start_time)
-
-        # Get the result image
-        annotated_image = result[0].plot()  # Annotated image with predictions
-
-        # Display the result in Streamlit
-        stframe.image(annotated_image, channels="RGB", use_column_width=True)
-
-        # If the user presses 'q', exit the loop
-        key = cv2.waitKey(1)
-        if key == ord('q'):
-            break
-
-    # Release the webcam and clean up
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
     cam.release()
-    cv2.destroyAllWindows()
+
+# Handling video file upload
+elif video_file is not None:
+    video_bytes = video_file.read()
+    st.video(video_bytes)
+
+else:
+    st.warning("Please select a video or enable webcam input.")
